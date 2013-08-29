@@ -1,8 +1,11 @@
 require 'spec_helper'
+
 describe "User pages" do
+
   subject { page }
 
   describe "index" do
+  
     let(:user) { FactoryGirl.create(:user) }
     before(:each) do
       sign_in user
@@ -44,8 +47,6 @@ describe "User pages" do
         it { should_not have_link('delete', href: user_path(admin)) }
       end
     end
-    
-
 
     before do
       sign_in FactoryGirl.create(:user)
@@ -79,6 +80,56 @@ describe "User pages" do
       it { should have_content(m2.content) }
       it { should have_content(user.microposts.count) }
     end
+
+    describe "follow/unfollow buttons" do
+      let(:other_user) { FactoryGirl.create(:user) }
+      before { sign_in user }
+
+      describe "following a user" do
+        before { visit user_path(other_user) }
+
+        it "should increment the followed user count" do
+          expect do
+            click_button "Follow"
+          end.to change(user.followed_users :count).by(1)
+        end
+
+        it "should increment the other user's follower count" do
+          expect do
+            click_button "Follow"
+          end.to change(other_user.followers, :count).by(1)
+        end
+
+        describe "toggling the button" do
+          before { click_button "Follow" }
+          it { should have_selector('input', value: 'Unfollow')}
+        end
+      end
+
+      describe "unfollowing a user" do
+        before do 
+          user.follow!(other_user)
+          visit user_path(other_user)
+        end
+
+        it "should decrement the user count" do
+          expect do
+            click_button "Unfollow"
+          end.to change(user.followed_users, :count).by(-1)
+        end
+
+        it "should decrement the other user's followers count" do
+          expect do
+            click_button "Unfollow"
+          end.to change(other_user.followers, :count).by(-1)
+        end
+
+        describe "toggling the button" do
+          before { click_button "Unfollow" }
+          it { should have_selector('input', value: 'Follow') }
+        end
+      end
+    end
   end
 
   describe "signup" do
@@ -102,14 +153,19 @@ describe "User pages" do
         it "should create a user" do
           expect { click_button submit }.to change(User, :count).by(1)
 	      end  
+
         describe "after saving the user" do
+          before { click_button submit }
+
+          let(:user) { User.find_by_email('user@example.com') }
+
+          it { should have_selector('title', text: user.name) }
+          it { should have_selector('div.alert.alert-success', text: 'Welcome') }
           it { should have_link('Sign out') }
         end
-        describe "followed by signout" do
-          before { click_link "Sign out" }
-          it { should have_link('Sign in') }
-        end
       end
+
+    
 
     describe "edit" do
       let(:user) { FactoryGirl.create(:user) }
@@ -143,9 +199,26 @@ describe "User pages" do
         it { should have_selector('title', text: new_name) }
         it { should have_selector('div.alert.alert-success') }
         it { should have_link('Sign out', href: signout_path) }
-        specify { user.relaod.name.should == new_name }
-        specify { user.relaod.email.should == new_email }
+        specify { user.reload.name.should == new_name }
+        specify { user.reload.email.should == new_email }
       end
     end
-  end    
+  end
+
+  describe "following/followers" do
+    let(:user) { FactoryGirl.create(:user) }
+    let(:other_user) { FactoryGirl.create(:user) }
+    before { user.follow!(other_user) }
+
+    describe "followed users" do
+      before do
+        sign_in other_user
+        visit following_user_path(user)
+      end
+
+      it { should have_selector('title', text: full_title('Followers')) }
+      it { should have_selector('h3', text: 'Followers') }
+      it { should have_link(user.name, href: user_path(user)) }
+    end
+  end
 end
